@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { validateEnv } from './config/env.validation';
@@ -8,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { RoomsModule } from './rooms/rooms.module';
 import { MessagesModule } from './messages/messages.module';
 import { ChatModule } from './chat/chat.module';
+import { UserModule } from './services/user.module';
 
 @Module({
   imports: [
@@ -19,6 +19,7 @@ import { ChatModule } from './chat/chat.module';
     }),
     DatabaseModule,
     RedisModule,
+    UserModule,
     AuthModule,
     RoomsModule,
     MessagesModule,

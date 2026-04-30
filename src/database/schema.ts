@@ -1,35 +1,26 @@
-import {
-  integer,
-  pgTable,
-  text,
-  timestamp,
-  uuid,
-  varchar,
-} from 'drizzle-orm/pg-core';
+import { bigint, pgTable, text } from 'drizzle-orm/pg-core';
+
+export const users = pgTable('users', {
+  id: text('id').primaryKey(),
+  username: text('username').notNull().unique(),
+  createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+});
 
 export const rooms = pgTable('rooms', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  name: varchar('name', { length: 120 }).notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .defaultNow()
-    .notNull(),
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  createdBy: text('created_by').notNull(),
+  createdAt: bigint('created_at', { mode: 'number' }).notNull(),
 });
 
 export const messages = pgTable('messages', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  roomId: uuid('room_id').notNull(),
-  senderUserId: text('sender_user_id').notNull(),
+  id: text('id').primaryKey(),
+  roomId: text('room_id').notNull(),
+  username: text('username').notNull(),
   content: text('content').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .defaultNow()
-    .notNull(),
+  createdAt: bigint('created_at', { mode: 'number' }).notNull(),
 });
 
-export const sessions = pgTable('sessions', {
-  token: text('token').primaryKey(),
-  userId: text('user_id').notNull(),
-  ttlSeconds: integer('ttl_seconds').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
+export type User = typeof users.$inferSelect;
+export type Room = typeof rooms.$inferSelect;
+export type Message = typeof messages.$inferSelect;
