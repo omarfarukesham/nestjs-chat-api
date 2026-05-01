@@ -1,35 +1,51 @@
-version: '3.9'
+name: anonymous-chat
 
 services:
   postgres:
-    image: postgres:16
-    container_name: anonymous-chat-postgres
+    image: postgres:16-alpine
+    container_name: chat-postgres
     environment:
       POSTGRES_USER: chat
       POSTGRES_PASSWORD: chat
       POSTGRES_DB: anonymous_chat
-    ports:
-      - '5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U chat -d anonymous_chat']
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
 
   redis:
-    image: redis:7
-    container_name: anonymous-chat-redis
-    ports:
-      - '6379:6379'
+    image: redis:7-alpine
+    container_name: chat-redis
     volumes:
       - redis_data:/data
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    build: .
+    container_name: chat-api
+    restart: unless-stopped
+    ports:
+      - '${API_PORT:-3000}:3000'
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgres://chat:chat@postgres:5432/anonymous_chat
+      REDIS_URL: redis://redis:6379
+      SESSION_TTL_SECONDS: 86400
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
 
 volumes:
   postgres_data:

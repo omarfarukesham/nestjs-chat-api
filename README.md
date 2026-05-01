@@ -1,98 +1,252 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Anonymous Chat API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Real-time, room-based anonymous chat backend. Users identify with a username only — no passwords, no registration. Rooms are created on demand; messages are persisted to PostgreSQL and delivered live via WebSocket. Designed to scale horizontally across multiple instances using a Redis pub/sub adapter.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+**Stack:** NestJS · TypeScript · PostgreSQL · Drizzle ORM · Redis · Socket.io
 
-## Description
+> Full design notes — session strategy, scaling reasoning, trade-offs — are in [ARCHITECTURE.md](./ARCHITECTURE.md).
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+---
 
-## Project setup
+## Quick start with Docker (recommended)
+
+The fastest path. Brings up Postgres, Redis, and the API in one command. Tables are auto-created on first start via [db/init.sql](./db/init.sql).
+
+**Prerequisites:** Docker + Docker Compose v2.
 
 ```bash
-$ npm install
+git clone <this-repo-url>
+cd nestjs-chat-api
+docker compose up -d --build
 ```
 
-## Compile and run the project
+Wait ~30 seconds for the postgres + redis healthchecks to pass and the api to start. Verify:
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+docker compose ps
 ```
 
-## Run tests
+All three containers should show `Up ... (healthy)`. The API is now serving on `http://localhost:3000`.
+
+Quick smoke test:
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+curl -X POST http://localhost:3000/api/v1/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"ali_123"}'
 ```
 
-## Deployment
+Expected response:
+```json
+{
+  "success": true,
+  "data": {
+    "sessionToken": "<64-char hex>",
+    "user": {
+      "id": "usr_…",
+      "username": "ali_123",
+      "createdAt": "2026-05-01T…"
+    }
+  }
+}
+```
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+To stop and remove all containers + volumes:
+```bash
+docker compose down -v
+```
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+---
+
+## Local development (without Docker)
+
+If you want hot reload while iterating on the source.
+
+**Prerequisites:** Node.js 22+, npm, a running PostgreSQL 16, a running Redis 7.
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+git clone <this-repo-url>
+cd nestjs-chat-api
+npm install
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Create `.env` in the project root:
 
-## Resources
+```dotenv
+NODE_ENV=development
+PORT=3000
+DATABASE_URL=postgres://chat:chat@localhost:5432/anonymous_chat
+REDIS_URL=redis://localhost:6379
+SESSION_TTL_SECONDS=86400
+CORS_ORIGIN=*
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+Create the schema in your Postgres database:
+```bash
+psql "$DATABASE_URL" -f db/init.sql
+```
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+Start the API in watch mode:
+```bash
+npm run start:dev
+```
 
-## Support
+The API is now serving on `http://localhost:3000`.
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+---
 
-## Stay in touch
+## Configuration
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+All config is read from environment variables. The api process never reads from disk for config.
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `NODE_ENV` | no | `development` | Standard Node env name |
+| `PORT` | no | `3000` | Port the HTTP + WebSocket server binds to |
+| `DATABASE_URL` | **yes** | — | Postgres connection string, e.g. `postgres://user:pass@host:5432/dbname` |
+| `REDIS_URL` | **yes** | — | Redis connection string, e.g. `redis://host:6379` (or `rediss://` for TLS) |
+| `SESSION_TTL_SECONDS` | no | `86400` | How long a session token is valid (seconds) |
+| `CORS_ORIGIN` | no | `*` | Comma-separated list of allowed origins, or `*` to reflect any |
+
+`docker-compose.yml` exposes two extra knobs for the host-side mapping:
+
+| Variable | Default | Description |
+|---|---|---|
+| `API_PORT` | `3000` | Host port mapped to the api container's port 3000 |
+| `CORS_ORIGIN` | `*` | Forwarded into the api container |
+
+So `API_PORT=4000 CORS_ORIGIN=https://my-frontend.com docker compose up -d` would publish on host port 4000 with CORS limited to that origin.
+
+---
+
+## API summary
+
+Base path `/api/v1`. All requests/responses are JSON. All routes except `/login` require `Authorization: Bearer <sessionToken>`.
+
+Every response is wrapped in an envelope:
+
+- Success → `{ "success": true, "data": { … } }`
+- Error → `{ "success": false, "error": { "code": "MACHINE_CODE", "message": "…" } }`
+
+### REST endpoints
+
+| Method | Path | Body / query | Auth | Notes |
+|---|---|---|---|---|
+| POST | `/api/v1/login` | `{ username }` (2-24 chars, `[A-Za-z0-9_]`) | – | Idempotent by username; returns fresh token each call |
+| GET | `/api/v1/rooms` | – | Bearer | `activeUsers` is a live count from Redis |
+| POST | `/api/v1/rooms` | `{ name }` (3-32 chars, `[A-Za-z0-9-]`, unique) | Bearer | 409 `ROOM_NAME_TAKEN` on duplicate |
+| GET | `/api/v1/rooms/:id` | – | Bearer | 404 `ROOM_NOT_FOUND` |
+| DELETE | `/api/v1/rooms/:id` | – | Bearer | Creator only (403 `FORBIDDEN`); cascades message deletion |
+| GET | `/api/v1/rooms/:id/messages` | `?limit=50&before=<msgId>` | Bearer | Cursor pagination, newest first |
+| POST | `/api/v1/rooms/:id/messages` | `{ content }` (1-1000 chars, trimmed) | Bearer | 422 `INVALID_CONTENT` / `MESSAGE_TOO_LONG` |
+
+Common error codes: `VALIDATION_ERROR` (400) · `UNAUTHORIZED` (401) · `FORBIDDEN` (403) · `ROOM_NOT_FOUND` (404) · `ROOM_NAME_TAKEN` (409) · `INVALID_CONTENT` / `MESSAGE_TOO_LONG` (422).
+
+### WebSocket
+
+Connect to namespace `/chat` with two query params:
+
+```
+ws://localhost:3000/chat?token=<sessionToken>&roomId=<roomId>
+```
+
+Server → client events:
+- `room:joined` — `{ activeUsers: string[] }` (sender only, on connect)
+- `room:user_joined` — `{ username, activeUsers }` (broadcast to others)
+- `message:new` — `{ id, username, content, createdAt }` (broadcast to all in room)
+- `room:user_left` — `{ username, activeUsers }`
+- `room:deleted` — `{ roomId }` (broadcast then disconnect)
+- `error` — `{ code, status, message }` followed by disconnect (on auth/room failure)
+
+Client → server events:
+- `room:leave` (no payload) — graceful leave; server cleans up and emits `room:user_left` to others.
+
+`message:new` is **always** triggered by `POST /messages`, never by a client emit. The REST controller publishes to a Redis channel, which all gateway instances pick up via pattern subscription and broadcast to their local sockets.
+
+---
+
+## Project layout
+
+```
+src/
+  main.ts                              bootstrap (CORS, validation, filters, WebSocket adapter)
+  app.module.ts                        root module
+  auth/                                POST /login + AuthService (issues tokens)
+  rooms/                               rooms CRUD
+  messages/                            messages list / create with cursor pagination
+  chat/
+    chat.gateway.ts                    Socket.io gateway for /chat namespace
+    chat-pubsub.service.ts             Redis pub/sub for REST → WS bridge (per-room channels)
+  services/
+    user.service.ts                    getOrCreateUser, generateSessionToken, getUserFromToken
+    user.module.ts
+  database/
+    schema.ts                          Drizzle table definitions
+    database.service.ts                Drizzle client + connection
+  redis/
+    redis.service.ts                   Redis client (validates connection on init)
+  config/
+    socket-io.ts                       Custom IoAdapter wiring @socket.io/redis-adapter
+    env.validation.ts                  Zod-based env schema
+  common/
+    guards/auth.guard.ts               Validates Bearer token, attaches user to request
+    filters/http-exception.filter.ts   Wraps exceptions in {success, error: {code, message}}
+    interceptors/response-envelope.interceptor.ts   Wraps responses in {success, data}
+    decorators/current-user.decorator.ts
+    types/request-user.type.ts
+    exceptions/app.exception.ts        Typed exception with code + message + status
+db/
+  init.sql                             Auto-loaded on first postgres container start
+docker-compose.yml                     postgres + redis + api
+Dockerfile                             Multi-stage build for the api image
+```
+
+---
+
+## Testing the deployed API end-to-end
+
+A two-browser test against any reachable instance — local or deployed:
+
+1. **Login as user A** in browser 1, **user B** in browser 2 (different usernames).
+2. From either, `POST /api/v1/rooms` with `{"name":"general"}`.
+3. Open `ws://<host>/chat?token=<A's token>&roomId=<id>` in browser 1 (Postman's Socket.IO request type works for this).
+4. Open the same with user B's token in browser 2.
+5. Each should see `room:joined` (own activeUsers) and `room:user_joined` (the other user appearing).
+6. Fire `POST /api/v1/rooms/:id/messages` from either browser via REST. Both browsers receive `message:new` over WebSocket.
+7. Disconnect browser 2 → browser 1 receives `room:user_left`.
+8. `DELETE /api/v1/rooms/:id` from the room creator → both browsers receive `room:deleted` and the connections close.
+
+To verify multi-instance scaling, start two API containers on different ports against the same Postgres + Redis, and connect clients to different ports — messages should still fan out across both.
+
+---
+
+## Useful npm scripts
+
+```bash
+npm run start:dev       # ts-node + watch mode
+npm run start:prod      # node dist/main (after `npm run build`)
+npm run build           # nest build → dist/
+npm run lint            # eslint --fix
+npm run test            # jest unit tests
+npm run test:e2e        # jest e2e tests
+```
+
+---
+
+## Deploying
+
+Any Docker-friendly host works. The included `Dockerfile` is multi-stage and produces a small runtime image (`node:22-alpine` base, only production dependencies + compiled `dist/`).
+
+For a production deploy:
+- Set `CORS_ORIGIN` to your real frontend origin (don't ship with `*`).
+- Use a managed Postgres (RDS, Cloud SQL, Neon) and managed Redis (ElastiCache, Upstash, Redis Cloud). Set `DATABASE_URL` and `REDIS_URL` accordingly.
+- Run two or more api instances behind a WebSocket-aware load balancer; the Redis adapter handles cross-instance broadcast.
+- Apply `db/init.sql` once against the managed database (or run the equivalent statements via `drizzle-kit push`).
+
+See [ARCHITECTURE.md §3-5](./ARCHITECTURE.md) for the multi-instance scaling reasoning and [§6](./ARCHITECTURE.md) for known limitations.
+
+---
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+UNLICENSED — submitted as an interview/assignment artefact.

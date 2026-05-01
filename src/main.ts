@@ -10,8 +10,13 @@ import { RedisService } from './redis/redis.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const corsEnv = process.env.CORS_ORIGIN?.trim();
+  const corsOrigin =
+    !corsEnv || corsEnv === '*'
+      ? true
+      : corsEnv.split(',').map((s) => s.trim());
   app.enableCors({
-    origin: process.env.CORS_ORIGIN?.split(',').map((s) => s.trim()) ?? true,
+    origin: corsOrigin,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
