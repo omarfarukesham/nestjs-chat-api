@@ -12,10 +12,7 @@ import { DatabaseService } from '../database/database.service';
 import { users } from '../database/schema';
 import { RedisService } from '../redis/redis.service';
 
-const idAlphabet = customAlphabet(
-  'abcdefghijklmnopqrstuvwxyz0123456789',
-  16,
-);
+const idAlphabet = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 16);
 
 const SESSION_KEY = (token: string) => `session:${token}`;
 

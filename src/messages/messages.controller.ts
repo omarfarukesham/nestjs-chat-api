@@ -7,10 +7,16 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { MessagesService } from './messages.service';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthGuard } from '../common/guards/auth.guard';
+import type { RequestUser } from '../common/types/request-user.type';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { ListMessagesDto } from './dto/list-messages.dto';
+import {
+  type ListMessagesResponse,
+  type MessageDto,
+  MessagesService,
+} from './messages.service';
 
 @Controller('api/v1/rooms/:roomId/messages')
 @UseGuards(AuthGuard)
@@ -21,7 +27,7 @@ export class MessagesController {
   listMessages(
     @Param('roomId') roomId: string,
     @Query() query: ListMessagesDto,
-  ): Record<string, unknown> {
+  ): Promise<ListMessagesResponse> {
     return this.messagesService.listMessages(roomId, query);
   }
 
@@ -29,7 +35,8 @@ export class MessagesController {
   createMessage(
     @Param('roomId') roomId: string,
     @Body() payload: CreateMessageDto,
-  ): Record<string, unknown> {
-    return this.messagesService.createMessage(roomId, payload);
+    @CurrentUser() user: RequestUser,
+  ): Promise<MessageDto> {
+    return this.messagesService.createMessage(roomId, payload, user.username);
   }
 }

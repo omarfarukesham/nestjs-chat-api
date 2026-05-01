@@ -5,13 +5,16 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { Request } from 'express';
+import { UserService } from '../../services/user.service';
 import type { RequestUser } from '../types/request-user.type';
 
 type RequestWithUser = Request & { user?: RequestUser };
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-  canActivate(context: ExecutionContext): boolean {
+  constructor(private readonly userService: UserService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<RequestWithUser>();
     const authHeader = request.headers.authorization;
 
@@ -30,9 +33,10 @@ export class AuthGuard implements CanActivate {
       });
     }
 
-    // TODO: Validate session token from Redis and resolve the real user.
+    const user = await this.userService.getUserFromToken(sessionToken);
     request.user = {
-      userId: 'placeholder-user-id',
+      userId: user.userId,
+      username: user.username,
       sessionToken,
     };
 

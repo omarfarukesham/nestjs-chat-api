@@ -1,4 +1,15 @@
+import { Type } from 'class-transformer';
+import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+
 export class ListMessagesDto {
-  // TODO: Replace with final list-messages query contract.
-  [key: string]: unknown;
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number = 50;
+
+  @IsOptional()
+  @IsString()
+  before?: string;
 }

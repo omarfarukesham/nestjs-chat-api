@@ -8,7 +8,7 @@ export const users = pgTable('users', {
 
 export const rooms = pgTable('rooms', {
   id: text('id').primaryKey(),
-  name: text('name').notNull(),
+  name: text('name').notNull().unique(),
   createdBy: text('created_by').notNull(),
   createdAt: bigint('created_at', { mode: 'number' }).notNull(),
 });

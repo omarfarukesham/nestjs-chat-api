@@ -1,16 +1,33 @@
 import { Injectable } from '@nestjs/common';
+import { UserService } from '../services/user.service';
 import { LoginDto } from './dto/login.dto';
+
+export interface LoginResponse {
+  sessionToken: string;
+  user: {
+    id: string;
+    username: string;
+    createdAt: number;
+  };
+}
 
 @Injectable()
 export class AuthService {
-  login(payload: LoginDto): Record<string, unknown> {
-    // TODO: Create session token, persist session in Redis, and return login response contract.
+  constructor(private readonly userService: UserService) {}
+
+  async login(payload: LoginDto): Promise<LoginResponse> {
+    const user = await this.userService.getOrCreateUser(payload.username);
+    const sessionToken = await this.userService.generateSessionToken(
+      user.userId,
+    );
+
     return {
-      sessionToken: 'placeholder-session-token',
+      sessionToken,
       user: {
-        id: 'placeholder-user-id',
+        id: user.userId,
+        username: user.username,
+        createdAt: user.createdAt,
       },
-      payloadEcho: payload,
     };
   }
 }
