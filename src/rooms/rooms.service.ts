@@ -21,14 +21,14 @@ export interface RoomDto {
   name: string;
   createdBy: string;
   activeUsers: number;
-  createdAt: number;
+  createdAt: string;
 }
 
 export interface CreateRoomResponse {
   id: string;
   name: string;
   createdBy: string;
-  createdAt: number;
+  createdAt: string;
 }
 
 @Injectable()
@@ -47,7 +47,7 @@ export class RoomsService {
         name: room.name,
         createdBy: room.createdBy,
         activeUsers: await this.redis.client.sCard(roomUsersKey(room.id)),
-        createdAt: room.createdAt,
+        createdAt: new Date(room.createdAt).toISOString(),
       })),
     );
     return { rooms: enriched };
@@ -92,7 +92,12 @@ export class RoomsService {
       throw err;
     }
 
-    return { id, name, createdBy: createdByUsername, createdAt };
+    return {
+      id,
+      name,
+      createdBy: createdByUsername,
+      createdAt: new Date(createdAt).toISOString(),
+    };
   }
 
   async getRoomById(id: string): Promise<RoomDto> {
@@ -115,7 +120,7 @@ export class RoomsService {
       name: room.name,
       createdBy: room.createdBy,
       activeUsers: await this.redis.client.sCard(roomUsersKey(room.id)),
-      createdAt: room.createdAt,
+      createdAt: new Date(room.createdAt).toISOString(),
     };
   }
 

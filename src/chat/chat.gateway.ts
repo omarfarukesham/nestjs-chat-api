@@ -52,7 +52,18 @@ export class ChatGateway
 
   afterInit(): void {
     this.pubsub.onMessage((roomId, payload) => {
-      this.server.local.to(roomId).emit('message:new', payload);
+      const m = payload as {
+        id: string;
+        username: string;
+        content: string;
+        createdAt: string;
+      };
+      this.server.local.to(roomId).emit('message:new', {
+        id: m.id,
+        username: m.username,
+        content: m.content,
+        createdAt: m.createdAt,
+      });
     });
 
     this.pubsub.onRoomDeleted(async (roomId) => {

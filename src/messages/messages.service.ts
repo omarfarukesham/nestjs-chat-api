@@ -17,7 +17,7 @@ export interface MessageDto {
   roomId: string;
   username: string;
   content: string;
-  createdAt: number;
+  createdAt: string;
 }
 
 export interface ListMessagesResponse {
@@ -87,7 +87,7 @@ export class MessagesService {
         roomId: m.roomId,
         username: m.username,
         content: m.content,
-        createdAt: m.createdAt,
+        createdAt: new Date(m.createdAt).toISOString(),
       })),
       hasMore,
       nextCursor,
@@ -120,17 +120,23 @@ export class MessagesService {
     }
 
     const id = `msg_${idAlphabet()}`;
-    const createdAt = Date.now();
+    const createdAtMs = Date.now();
 
     await this.database.db.insert(messages).values({
       id,
       roomId,
       username,
       content,
-      createdAt,
+      createdAt: createdAtMs,
     });
 
-    const message: MessageDto = { id, roomId, username, content, createdAt };
+    const message: MessageDto = {
+      id,
+      roomId,
+      username,
+      content,
+      createdAt: new Date(createdAtMs).toISOString(),
+    };
 
     await this.pubsub.publishMessage(roomId, message);
 

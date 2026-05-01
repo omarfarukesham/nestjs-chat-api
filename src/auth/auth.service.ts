@@ -7,7 +7,7 @@ export interface LoginResponse {
   user: {
     id: string;
     username: string;
-    createdAt: number;
+    createdAt: string;
   };
 }
 
@@ -26,7 +26,7 @@ export class AuthService {
       user: {
         id: user.userId,
         username: user.username,
-        createdAt: user.createdAt,
+        createdAt: new Date(user.createdAt).toISOString(),
       },
     };
   }
