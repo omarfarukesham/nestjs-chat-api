@@ -43,22 +43,23 @@ A real-time, room-based anonymous chat backend built on **NestJS**, **PostgreSQL
 
 ### Module layout (key files)
 
-| Concern | Files |
-|---|---|
-| HTTP API | `src/auth/*`, `src/rooms/*`, `src/messages/*` |
-| WebSocket gateway | `src/chat/chat.gateway.ts` |
-| Cross-process pub/sub | `src/chat/chat-pubsub.service.ts` |
-| Socket.io Redis adapter | `src/config/socket-io.ts`, wired in `src/main.ts` |
-| Sessions / users | `src/services/user.service.ts` |
-| Auth guard | `src/common/guards/auth.guard.ts` |
-| Response envelope | `src/common/interceptors/response-envelope.interceptor.ts` |
-| Error envelope | `src/common/filters/http-exception.filter.ts` |
-| DB schema | `src/database/schema.ts` |
-| Tables auto-seed | `db/init.sql` (mounted into the postgres container) |
+| Concern                 | Files                                                      |
+| ----------------------- | ---------------------------------------------------------- |
+| HTTP API                | `src/auth/*`, `src/rooms/*`, `src/messages/*`              |
+| WebSocket gateway       | `src/chat/chat.gateway.ts`                                 |
+| Cross-process pub/sub   | `src/chat/chat-pubsub.service.ts`                          |
+| Socket.io Redis adapter | `src/config/socket-io.ts`, wired in `src/main.ts`          |
+| Sessions / users        | `src/services/user.service.ts`                             |
+| Auth guard              | `src/common/guards/auth.guard.ts`                          |
+| Response envelope       | `src/common/interceptors/response-envelope.interceptor.ts` |
+| Error envelope          | `src/common/filters/http-exception.filter.ts`              |
+| DB schema               | `src/database/schema.ts`                                   |
+| Tables auto-seed        | `db/init.sql` (mounted into the postgres container)        |
 
 ### Request lifecycle
 
 **Successful REST call**
+
 ```
 client → ValidationPipe → AuthGuard → controller → service → Drizzle / Redis
                                                                     │
@@ -68,6 +69,7 @@ client → ValidationPipe → AuthGuard → controller → service → Drizzle /
 ```
 
 **Error path (any throw)**
+
 ```
 service → throw AppException / NestException → HttpExceptionFilter
        → {success: false, error: {code, message}}    [proper status code]
@@ -79,15 +81,16 @@ service → throw AppException / NestException → HttpExceptionFilter
 
 Anonymous, username-only auth. There are no passwords; identity is asserted by holding a fresh **session token** issued at login.
 
-| Step | Where | What happens |
-|---|---|---|
-| Login | `POST /api/v1/login` | `getOrCreateUser(username)` returns existing user or creates with prefixed id (`usr_<nanoid>`). |
-| Token generation | `UserService.generateSessionToken` | `crypto.randomBytes(32).toString('hex')` → 64-char opaque token. |
-| Token storage | Redis | `SET session:<token> <userId> EX 86400` (24-hour TTL). Redis evicts expired tokens automatically. |
-| REST validation | `AuthGuard` on every protected route | Reads `Authorization: Bearer <token>`, calls `UserService.getUserFromToken`, attaches `{userId, username, sessionToken}` to `request.user`. |
-| WebSocket validation | `ChatGateway.handleConnection` | Same `getUserFromToken` flow on the handshake `?token=` query param. Invalid → emit `error` with `code: UNAUTHORIZED`, force-disconnect. |
+| Step                 | Where                                | What happens                                                                                                                                |
+| -------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Login                | `POST /api/v1/login`                 | `getOrCreateUser(username)` returns existing user or creates with prefixed id (`usr_<nanoid>`).                                             |
+| Token generation     | `UserService.generateSessionToken`   | `crypto.randomBytes(32).toString('hex')` → 64-char opaque token.                                                                            |
+| Token storage        | Redis                                | `SET session:<token> <userId> EX 86400` (24-hour TTL). Redis evicts expired tokens automatically.                                           |
+| REST validation      | `AuthGuard` on every protected route | Reads `Authorization: Bearer <token>`, calls `UserService.getUserFromToken`, attaches `{userId, username, sessionToken}` to `request.user`. |
+| WebSocket validation | `ChatGateway.handleConnection`       | Same `getUserFromToken` flow on the handshake `?token=` query param. Invalid → emit `error` with `code: UNAUTHORIZED`, force-disconnect.    |
 
 **Why session tokens in Redis (not JWT):**
+
 - Server-side revocation works for free (delete the key).
 - TTL is enforced by Redis without us writing expiry logic.
 - Token payload is one Redis lookup vs. signature verification per request — comparable latency for a single key, but with the win of central control.
@@ -150,11 +153,11 @@ Two non-obvious decisions:
 
 A NestJS process running socket.io with the Redis adapter has these dominant costs per WebSocket connection:
 
-| Resource | Per-connection rough cost |
-|---|---|
-| Heap (socket object, room membership maps, buffers) | ~25-40 KB |
-| File descriptors | 1 |
-| TCP send/receive buffer | ~16-64 KB (kernel, configurable) |
+| Resource                                            | Per-connection rough cost        |
+| --------------------------------------------------- | -------------------------------- |
+| Heap (socket object, room membership maps, buffers) | ~25-40 KB                        |
+| File descriptors                                    | 1                                |
+| TCP send/receive buffer                             | ~16-64 KB (kernel, configurable) |
 
 For a **2 vCPU / 2 GB RAM** instance running this app in Docker (modest production VM):
 
@@ -165,6 +168,7 @@ For a **2 vCPU / 2 GB RAM** instance running this app in Docker (modest producti
 **Practical baseline: 5,000–10,000 concurrent users per instance**, validated through the lens of message rate (low rate → higher cap, high rate → lower).
 
 The bigger limit at our concurrency is usually:
+
 - **Postgres write throughput** for `messages` inserts (mitigated by indexed inserts and connection pooling at 5 connections per instance via `postgres-js`).
 - **Redis command rate** for the per-connect/disconnect SET operations (a single Redis instance comfortably handles 100k+ ops/sec).
 
@@ -188,13 +192,11 @@ The architecture is designed so this scales horizontally without rewrites:
 
 ## 6. Known limitations and trade-offs
 
-Honest list. None are blockers for the assignment scope, but they would matter in production.
-
-1. **Active-user SET is keyed by username, not socket id.** A user with two tabs in the same room shows once in `activeUsers` (deduped by SET), but disconnecting the first tab issues `SREM` and removes them — even though the second tab is still connected. Fix: track per-(user, room) socket count and only `SREM` when count hits zero. Skipped for code simplicity given the assignment's scope.
-2. **No foreign key from `messages.room_id` to `rooms.id`.** Room deletion is enforced transactionally in `RoomsService.deleteRoom` (delete messages, then the room). FKs would push that to the DB, but were omitted to keep schema generation trivial. A safe production change.
-3. **Bearer token in WebSocket query string** — appears in some access logs. The Socket.io alternative is to send `auth: { token }` in the connection options and validate via middleware; cleaner but the assignment spec specified the query-string form.
-4. **No rate limiting** on `POST /messages` or `POST /login`. Easy to add via `@nestjs/throttler` or nginx-side; not in scope.
-5. **No retention policy** on the `messages` table. Production would either prune after N days or partition by month and drop old partitions.
-6. **`CORS_ORIGIN: '*'`** is the default in `docker-compose.yml`. Tighten to your real frontend origin in production.
-7. **Single Redis instance** — a Redis outage takes down sessions, presence, and the pub/sub bridge simultaneously. HA Redis (sentinel or cluster) is the production move.
-8. **Timestamps stored as `bigint` ms since epoch**, returned as ISO 8601 strings in responses. Storage choice keeps cursor-based pagination's tie-breaker logic (`(created_at, id) < cursor`) trivial; the response conversion happens at each service boundary. Acceptable, but storing `timestamptz` would make ad-hoc DB queries more ergonomic.
+- **Multi-tab presence quirk** — `room:{id}:users` is a SET keyed by username, so a user with two open tabs counts once but disconnecting one tab removes them from the SET while the other tab is still connected. Fixing it cleanly needs per-(user, room) socket counting.
+- **No FK from `messages.room_id` to `rooms.id`** — room deletion is enforced transactionally in `RoomsService.deleteRoom` instead. Keeps the schema simple, but a stray write could orphan messages.
+- **Bearer token in WebSocket query string** — visible in proxy access logs. The `auth: { token }` socket.io option is cleaner; the query-string form was kept to match the assignment contract.
+- **No rate limiting** on `POST /messages` or `POST /login` — would add `@nestjs/throttler` (or nginx limits) for production.
+- **No message retention policy** — `messages` grows unbounded. Production would prune by age or partition by month.
+- **`CORS_ORIGIN: '*'`** is the docker-compose default. Tighten to the real frontend origin in production.
+- **Single Redis node** — outage takes down sessions, presence, and the pub/sub bridge together. HA via sentinel/cluster is the production move.
+- **Timestamps stored as `bigint` ms-epoch, returned as ISO 8601 strings** — chosen because cursor pagination's `(created_at, id) < cursor` tie-breaker is trivial with integers; `timestamptz` would be more ergonomic for ad-hoc DB queries.

@@ -2,6 +2,8 @@
 
 Real-time, room-based anonymous chat backend. Users identify with a username only — no passwords, no registration. Rooms are created on demand; messages are persisted to PostgreSQL and delivered live via WebSocket. Designed to scale horizontally across multiple instances using a Redis pub/sub adapter.
 
+![Anonymous chat — live multi-user demo](https://i.ibb.co.com/wrR4nnBB/chat28.png)
+
 **Stack:** NestJS · TypeScript · PostgreSQL · Drizzle ORM · Redis · Socket.io
 
 > Full design notes — session strategy, scaling reasoning, trade-offs — are in [ARCHITECTURE.md](./ARCHITECTURE.md).
